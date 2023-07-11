@@ -1,23 +1,13 @@
-/**
- * Main.cc
- *
- *  @date Created on: Dec 19, 2016
- *  @author Keith D Brauss
- */
+//
+//  main.cpp
+//  Coulomb-Energy-Minimizer
+//
+//  Naive implementation of Coulomb Shapes
+//  in O(n^2) time.
 
-#include<iostream>
-#include<vector>
-#include<cmath>
-
-#include "Point.h"
-#include "Util.h"
-#include "Potential.h"
-#include "FmmTree.h"
-
-// bartu edit
 #include <math.h>
 #include <string>
-#include <chrono>
+#include <iostream>
 
 #include <igl/readOFF.h>
 #include <igl/readOBJ.h>
@@ -26,12 +16,12 @@
 
 #include <Eigen/Core>
 
-#include "cppoptlib/function.h"
-#include "cppoptlib/solver/solver.h"
-#include "cppoptlib/solver/bfgs.h"
-#include "cppoptlib/solver/gradient_descent.h"
-#include "cppoptlib/solver/newton_descent.h"
-#include "cppoptlib/solver/conjugated_gradient_descent.h"
+#include <cppoptlib/function.h>
+#include <cppoptlib/solver/solver.h>
+#include <cppoptlib/solver/bfgs.h>
+#include <cppoptlib/solver/gradient_descent.h>
+#include <cppoptlib/solver/newton_descent.h>
+#include <cppoptlib/solver/conjugated_gradient_descent.h>
 
 using namespace cppoptlib;
 using namespace Eigen;
@@ -50,11 +40,16 @@ MatrixXi F;         // Faces
 MatrixXd E;         // Edges
 std::vector<adjacency> adjacency_list;
 
+// ===============================================================================================================================================
+// ===============================================================================================================================================
 // CONSTANTS (TO BE CHANGED) TODO: convert these to arguments
 const int STARTING_ITER = 0;            // Doesn't affect functionality, just to save iteration points (TODO: remove)
 const int CHECKPOINT_ITER = 100;        // Save the result every CHECKPOINT_ITER iterations
 const int T_STEPS = 300;                // Number of iterations to optimize the objective function
-const std::string OBJ_MESH_PATH = "/Users/bartu/Desktop/Coulomb-FFM/test meshes/16.obj";   // Path to the input mesh .obj
+const std::string OBJ_MESH_PATH = "../../../test meshes/kid01_decimated.obj";   // Path to the input mesh .obj
+// ===============================================================================================================================================
+// ===============================================================================================================================================
+
 
 // --------------------------------------------------------------------------------------------------------------
 
@@ -85,7 +80,7 @@ std::vector<adjacency> edge_length_adjacency(const MatrixXd& V, const MatrixXd& 
         
         adjacency_list[v2_idx].connected_edge_lengths.insert(adjacency_list[v2_idx].connected_edge_lengths.end(),
                                                              edge_length);
-        
+                
     }
     return adjacency_list;
 }
@@ -145,29 +140,107 @@ void get_edge_lengths(const VectorXd& X, const MatrixXd& E, VectorXd& edge_lengt
     return;
 }
 
-// Convert VectorXd Eigen vector to std::vector<Point>
-void eigen2point(const VectorXd& X_vector, std::vector<Point>& X_points){
+// TODO: squared is never needed ig, it can be either removed or utilized.
+double get_coulomb_energy(const VectorXd& X, bool squared = false, bool get_inverse = false){
     
-    // Assert the size of vectors
-    assert(X_vector.rows() / 3 == X_points.size());
+    double distance;
+    double tot_energy = 0.0;
+    size_t num_particles = X.rows() / 3;
     
-    size_t num_points = X_points.size();
-    for(size_t i = 0; i < num_points; i++){
-        X_points[i].setX(X_vector(i * 3));
-        X_points[i].setY(X_vector(i * 3 + 1));
-        X_points[i].setZ(X_vector(i * 3 + 2));
+    for(size_t i = 0; i < num_particles; i++){
+        for(int j = 0; j < num_particles; j++){
+            if(i == j)
+                continue;
+            
+            VectorXd p1{{ X(i), X(i + 1), X(i + 2)}}; // {x,y,z} coordinates of p1
+            VectorXd p2{{ X(j), X(j + 1), X(j + 2)}}; // {x,y,z} coordinates of p2
+            
+            if(squared)
+                distance = (p2 - p1).squaredNorm();
+            else
+                distance = (p2 - p1).norm();
+            
+            if(get_inverse){
+                distance += __DBL_EPSILON__;    // For numerical stability
+                distance = 1.0 / distance;
+            }
+            tot_energy += distance;
+        }
     }
+    return tot_energy;
 }
 
-// end of bartu edit
+
+// --------------------------------------------------------------------------------------------------------------
+
+class CoulombEnergy : public FunctionXd {
+public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    
+    // Definition the Coulomb Energy in Eqn.1
+    double operator()(const Eigen::VectorXd &X) const override{
+        
+        //VectorXd inv_edge_lengths(E.rows());
+        //get_edge_lengths(X, E, inv_edge_lengths, false, true);
+        
+        //double energy = inv_edge_lengths.sum();
+        //return energy;
+        return get_coulomb_energy(X, false, true);
+    }
+    
+    // For computing gradients numerically, this function can be commented
+    // However, a single iteration of numerical solver takes more than 40 minutes,
+    // whereas provided gradients run 10 iterations under a minute.
+    void Gradient(const vector_t &X, vector_t *grad) const override {
+        
+        // assert(X.rows() % 3 == 0);        // X should contain 3 coordinates for every vertex
+        // assert(X.rows() == grad->rows()); // ensured by library
+        
+        size_t N = X.rows() / 3;          // number of vertices
+        size_t idx, idx2;                 // used for finding the two points connected by an edge
+                
+        // Loop over every vertex
+        for(size_t i = 0; i < N; i++){
+            
+            idx = 3*i;          // index of the x coordinate of the vertex_i
+            
+            int k = 0;          // counter for the loop below
+            (*grad)[idx] = 0;   // d_xix
+            (*grad)[idx+1] = 0; // d_xiy
+            (*grad)[idx+2] = 0; // d_xiz
+            double edge_len = 0.0;
+            double cache = 0.0; // cache to be utilized in multiple derivatives
+            for(size_t j = 0; j < N; j++){
+                if(i == j)
+                    continue;
+                
+                idx2 = 3 * j;     // index of the x coordinate of the neighbour vertex_j
+                
+                // TODO: Just slice the vector using Eigen::block?
+                VectorXd p1{{ X(idx), X(idx + 1), X(idx + 2)}};    // {x,y,z} coordinates of p1
+                VectorXd p2{{ X(idx2), X(idx2 + 1), X(idx2 + 2)}}; // {x,y,z} coordinates of p2
+                
+                edge_len = (p2 - p1).squaredNorm(); // I used squared norm in the derivation
+                cache = -0.5 * pow(edge_len, -1.5);
+                
+                // Computing the gradients for each x,y,z coordinate of the vertex_i, over the neighbour vertex_j
+                (*grad)[idx]   += cache * (2 * (X(idx)   - X(idx2)));       // gradient for x coordinate
+                (*grad)[idx+1] += cache * (2 * (X(idx+1) - X(idx2+1)));     // gradient for y coordinate
+                (*grad)[idx+2] += cache * (2 * (X(idx+2) - X(idx2+2)));     // gradient for z coordinate
+                
+                k++;
+            }
+        }
+    }
+};
+// --------------------------------------------------------------------------------------------------------------
 
 
-int main()
-{
+int main(int argc, char const *argv[]) {
     // ------------------------------------------------------------------------------------------------------
     //                                        INPUT MESH PRECOMPUTATION
     // ------------------------------------------------------------------------------------------------------
-    
+        
     // Read input mesh
     //igl::readOBJ("../../../result.obj", V, F);    // Use this to resume where you left
     igl::readOBJ(OBJ_MESH_PATH, V, F);
@@ -180,161 +253,72 @@ int main()
     // Precompute inverse edge lengths
     adjacency_list = edge_length_adjacency(V, E);
     
+    // ------------------------------------------------------------------------------------------------------
+    //                                      OPTIMIZATION (Eqn.6 and Eqn.4)
+    // ------------------------------------------------------------------------------------------------------
+    using Solver = cppoptlib::solver::ConjugatedGradientDescent<CoulombEnergy>;
+    
+    CoulombEnergy coulomb_energy;
     // TODO: How to get rid of matrix to vector conversions (and stick to a single notation either matrix or vector)?
     // Convert V to X, where V is a matrix and X is a vector, flattened version of V
     RowMatrixXd V_RowMajor(V);                                     // Eigen matrices are Column-Major by default
     Map<RowVectorXd> V_map(V_RowMajor.data(), V_RowMajor.size());  // Flatten Eigen matrix into a vector
-    VectorXd x_eigen = V_map;
+    VectorXd x = V_map;
     
+
     // Get the maximum edge length over the entire mesh,
     // to be utilized in step size, aka c(t) of eqn.4
     VectorXd edge_lengths(E.rows());
-    get_edge_lengths(x_eigen, E, edge_lengths);
+    get_edge_lengths(x, E, edge_lengths);
     double max_d =edge_lengths.maxCoeff();
     
-  // ------------------------------------------------------------------------------------------------------
-  //                                                F F M
-  // ------------------------------------------------------------------------------------------------------
-
-  // note that the DEFAULT_NUM_LEVEL count starts on l = 1
-  // Example:  If the default number of FMM levels is 5
-  //           Then the levels are l = 0, l = 1, l = 2, l = 3, and l = 4
-  int DEFAULT_NUM_LEVEL = 4;
-  // abs_alpha is also the order_of_approximation - highest order of derivatives used in Taylor series approximation
-  unsigned int abs_alpha = 4;
-  // number of Taylor series terms used to approximate the potential function
-  int p = (abs_alpha+1)*(abs_alpha+1);
-
-  std::vector<Point>  x, y;
-  std::vector<double> u;
-
-  // Below we use 8 source particles (2 in each coordinate direction)
-  // per cell with pow(8,L-1) cells/boxes partitioning the domain
-  size_t nSourceParticles = V.rows(); // pow(2, 0);
-  x.resize(nSourceParticles);
- 
-  // One target point
-  y.resize(nSourceParticles);
-
-  // u holds the charges of source particles TODO: i forgot how to initialize all elements to same..
-  u.resize(nSourceParticles);
-  for(size_t i = 0; i < nSourceParticles; i++){
-      u[i] = 1.0;
-  }
-
-  // ********************************************************************
-  // Creating the Source Points *****************************************
-  // ********************************************************************
-    
-    eigen2point(x_eigen, x);
-    eigen2point(x_eigen, y);
-
-   // ********************************************************************
-  // Creating the Target Points *****************************************
-  // ********************************************************************
-  // Declaring the Potential Function needed by fmmtree data structure
-  std::cout << ">> We are here before constructor for the potential function" << std::endl;
-  Potential potential(p,abs_alpha);
-
-  std::cout << ">> We are here before fmmtree construct" << std::endl;
-  std::cout << ">> The number of source particles is " << x.size() << std::endl;
-  std::cout << ">> The number of target particles is " << y.size() << std::endl;
-  std::cout << ">> The potential function has p = " << potential.getP() << std::endl;
-  std::cout << ">> The potential function has order_of_approximation = " << potential.getOrderApprox() << std::endl;
-
-  // Declaring the FMM Tree data structure
-  auto start = std::chrono::steady_clock::now();
-  FmmTree fmmtree(DEFAULT_NUM_LEVEL,x,y,potential);
-  auto end = std::chrono::steady_clock::now();
-  std::cout << ">>> FFM tree construction took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    
-    
-  start = std::chrono::steady_clock::now();
-  std::vector<double> direct = fmmtree.solveDirect(u);
-  end = std::chrono::steady_clock::now();
-    
-  std::cout << ">>> Direct solver took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    
-    /*
-    for (unsigned int i=0; i<direct.size(); ++i){
-        std::cout << ">> direct[" << i << "] = [" << direct[i] << "]" << std::endl;
+    // Iteratively compute Eqn.4 and 6 for T_STEPS
+    for(int t = 0; t < T_STEPS; t++){
+        // Evaluate energy function
+        auto state = coulomb_energy.Eval(x, 1);
+        
+        // Print objective function's value
+        if((t+1) % 1 == 0){
+            std::cout << "iter " << (t+1) << " - energy :" << state.value << "\n";
+        }
+        
+        // Eqn. 4
+        auto grad = state.gradient;
+        double c_t = 0.1 * (max_d / grad.maxCoeff());   // step-size heuristic used by the paper
+        x = state.x - c_t * grad;
+        
+        // Eqn. 6
+        // I tried disabling the constraint but then the result is garbage.
+        MatrixXd x_mat = RowMatrixXd::Map(x.data(), int(x.rows()/3), 3);
+        apply_edge_constraint(x_mat, adjacency_list);
+        
+        // TODO: adjust apply_edge_constraints to work on flat vectors
+        RowMatrixXd x_mat_rowmajor(x_mat);
+        Map<RowVectorXd> x_map(x_mat_rowmajor.data(), x_mat_rowmajor.size());
+        x = x_map;
+        
+        if((t+1) % CHECKPOINT_ITER == 0){
+            MatrixXd V_new = RowMatrixXd::Map(x.data(), int(x.rows()/3), 3);
+            igl::writeOBJ("../../../result_" + std::to_string(STARTING_ITER+t+1) + ".obj", V_new, F);
+        }
     }
-    */
-   
-    /*
-    std::cout << ">> Starting indirect solver...\n";
     
-    start = std::chrono::steady_clock::now();
-    std::vector<std::vector<std::complex<double> > > indirect = fmmtree.solve(u);
-    end = std::chrono::steady_clock::now();
+    // Unflatten X vector back to V matrix
+    // TODO: stick to either vector or matrix representation?
+    MatrixXd V_new = RowMatrixXd::Map(x.data(), int(x.rows()/3), 3);
     
-    std::cout << ">>> Indirect solver took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-   */
+    // ------------------------------------------------------------------------------------------------------
+    //                                          OUTPUT MESH
+    // ------------------------------------------------------------------------------------------------------
+    // Write the output mesh into .obj
+    // See result.obj created in the project folder
+    igl::writeOBJ("../../../result.obj", V_new, F);
     
-    /*
-  for (unsigned int i=0; i<direct.size(); ++i)
-  {
-    std::cout << ">> direct[" << i << "] = [" << direct[i] << "]" << " versus "
-    		  << "indirect[0][" << i << "] = [" << indirect[0][i] << "]" << "\n";
-  }
-*/
- 
-    /*
-  std::cout << ">> direct.size() = " << direct.size() << std::endl;
-  double error = 0.0;
-
+    // TODO: Run this once to verify your gradients --> Result: correct :) (for decimated mesh)
+    // Note: Running the line below takes about ~1.5 hours, depending on the mesh size.
+    // This is due to the speed of numerical computation of gradients.
+    // std::cout << "Is gradient correct? " << cppoptlib::utils::IsGradientCorrect(coulomb_energy, x) << std::endl;
     
-  for (unsigned int i = 0; i<direct.size(); ++i)
-  {
-	  double tmp = std::abs(direct[i]-indirect[0][i].real());
-	  if (tmp>error)
-        error = tmp;
-  }
-
-  std::cout << ">> Error = " << error << "\n";
-*/
-  //std::cin.ignore();
-  //std::cin.get();
-
-    
-    start = std::chrono::steady_clock::now();
-    std::vector<std::vector<double> > direct_grad = fmmtree.solveDirectGrad(u);
-    end = std::chrono::steady_clock::now();
-    
-    std::cout << ">>> Direct gradient took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    /*
-  for (unsigned int i=0; i<y.size(); ++i)
-    std::cout << ">> direct_grad[" << i << "] = [" << direct_grad[0][i] << ", " << direct_grad[1][i] << ", "
-                                                   << direct_grad[2][i] << "]" << std::endl;
-*/
-  //std::cin.ignore();
-  //std::cin.get();
-
-    /*
-    for (unsigned int i=0; i<y.size(); ++i)
-    {
- 
-	    std::cout << ">> direct_grad[" << i << "] = [" << direct_grad[0][i] << ", " << direct_grad[1][i] << ", " << direct_grad[2][i] << "]" << " versus "
-    		  << "indirect[" << i << "] = [" << indirect[1][i] << ", " << indirect[2][i] << ", " << indirect[3][i] << "]" << "\n";
-    }
-*/
-/*
-    std::cout << ">> direct_grad.size() = " << direct_grad.size() << std::endl;
-    double error_grad1 = 0.0;
-    double error_grad2 = 0.0;
-    for (unsigned int i = 0; i<y.size(); ++i)
-    {
- 	  double tmp1 = std::abs(direct_grad[0][i]-indirect[1][i].real());
-  	  double tmp2 = std::abs(direct_grad[1][i]-indirect[2][i].real());
-  	  if (tmp1>error_grad1)
-          error_grad1 = tmp1;
-  	  if (tmp2>error_grad2)
-          error_grad2 = tmp2;
-    }
-
-    std::cout << ">> ErrorGrad = [" << error_grad1 << ", " << error_grad2 << "]" << "\n";
-*/
-  std::cout << ">> Finished." << "\n";
-
-
+    return EXIT_SUCCESS;
 }
+
