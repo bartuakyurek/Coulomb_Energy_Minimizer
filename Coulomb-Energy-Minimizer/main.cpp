@@ -52,7 +52,7 @@ std::vector<adjacency> adjacency_list;
 
 // CONSTANTS (TO BE CHANGED) TODO: convert these to arguments
 const int STARTING_ITER = 0;            // Doesn't affect functionality, just to save iteration points (TODO: remove)
-const int CHECKPOINT_ITER = 10;        // Save the result every CHECKPOINT_ITER iterations
+const int CHECKPOINT_ITER = 20;        // Save the result every CHECKPOINT_ITER iterations
 const int T_STEPS = 300;                // Number of iterations to optimize the objective function
 const std::string OBJ_MESH_PATH = "/Users/bartu/Desktop/Coulomb-FFM/test meshes/16_decimated.obj";   // Path to the input mesh .obj
 
@@ -271,6 +271,8 @@ int main()
     Eigen::VectorXd copied_grad(nSourceParticles*3);
     // Iteratively compute Eqn.4 and 6 for T_STEPS
     for(int t = 0; t < T_STEPS; t++){
+        
+        FmmTree fmmtree(DEFAULT_NUM_LEVEL,x,y,potential);
         std::cout << "Step " << t << "...\n";
         // Evaluate energy function
         std::vector<std::vector<double>> direct_grad = fmmtree.solveDirectGrad(u);
@@ -289,7 +291,7 @@ int main()
             copied_grad(i * 3 + 2) = direct_grad[2][i];
         }
         double c_t = 0.1  * (max_d / copied_grad.maxCoeff());   // step-size heuristic used by the paper
-        copied_x = copied_x - c_t * copied_grad;
+        copied_x = copied_x + c_t * copied_grad;
         
         // Eqn. 6
         // I tried disabling the constraint but then the result is garbage.
@@ -302,8 +304,8 @@ int main()
         copied_x = x_map;
         
         // convert them back TODO: get rid of conversions...
-        eigen2point(x_eigen, x);
-        eigen2point(x_eigen, y);
+        eigen2point(copied_x, x);
+        eigen2point(copied_x, y);
         
         if((t+1) % CHECKPOINT_ITER == 0){
             MatrixXd V_new = RowMatrixXd::Map(copied_x.data(), int(copied_x.rows()/3), 3);
