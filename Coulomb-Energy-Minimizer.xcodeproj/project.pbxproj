@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8D357D2F2A5DB6140013ACE8 /* Box.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8D357D2A2A5DB6140013ACE8 /* Box.cpp */; };
+		8D357D302A5DB6140013ACE8 /* Potential.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8D357D2B2A5DB6140013ACE8 /* Potential.cpp */; };
+		8D357D312A5DB6140013ACE8 /* Util.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8D357D2C2A5DB6140013ACE8 /* Util.cpp */; };
+		8D357D322A5DB6140013ACE8 /* FmmTree.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8D357D2D2A5DB6140013ACE8 /* FmmTree.cpp */; };
+		8D357D332A5DB6140013ACE8 /* Point.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8D357D2E2A5DB6140013ACE8 /* Point.cpp */; };
 		8DD343762A12757F001F5E0F /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8DD343752A12757F001F5E0F /* main.cpp */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +28,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8D357D2A2A5DB6140013ACE8 /* Box.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Box.cpp; sourceTree = "<group>"; };
+		8D357D2B2A5DB6140013ACE8 /* Potential.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Potential.cpp; sourceTree = "<group>"; };
+		8D357D2C2A5DB6140013ACE8 /* Util.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Util.cpp; sourceTree = "<group>"; };
+		8D357D2D2A5DB6140013ACE8 /* FmmTree.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = FmmTree.cpp; sourceTree = "<group>"; };
+		8D357D2E2A5DB6140013ACE8 /* Point.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Point.cpp; sourceTree = "<group>"; };
 		8DD343722A12757F001F5E0F /* Coulomb-Energy-Minimizer */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Coulomb-Energy-Minimizer"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8DD343752A12757F001F5E0F /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -57,6 +67,11 @@
 		8DD343742A12757F001F5E0F /* Coulomb-Energy-Minimizer */ = {
 			isa = PBXGroup;
 			children = (
+				8D357D2A2A5DB6140013ACE8 /* Box.cpp */,
+				8D357D2D2A5DB6140013ACE8 /* FmmTree.cpp */,
+				8D357D2E2A5DB6140013ACE8 /* Point.cpp */,
+				8D357D2B2A5DB6140013ACE8 /* Potential.cpp */,
+				8D357D2C2A5DB6140013ACE8 /* Util.cpp */,
 				8DD343752A12757F001F5E0F /* main.cpp */,
 			);
 			path = "Coulomb-Energy-Minimizer";
@@ -119,7 +134,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8D357D332A5DB6140013ACE8 /* Point.cpp in Sources */,
+				8D357D322A5DB6140013ACE8 /* FmmTree.cpp in Sources */,
 				8DD343762A12757F001F5E0F /* main.cpp in Sources */,
+				8D357D302A5DB6140013ACE8 /* Potential.cpp in Sources */,
+				8D357D2F2A5DB6140013ACE8 /* Box.cpp in Sources */,
+				8D357D312A5DB6140013ACE8 /* Util.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

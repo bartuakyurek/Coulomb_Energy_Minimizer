@@ -1,2 +1,2 @@
 dependencies: \
-  /Users/bartu/Desktop/Coulomb_Energy_Minimizer_cppopt/Coulomb-Energy-Minimizer/main.cpp
+  /Users/bartu/Documents/GitHub/Coulomb_Energy_Minimizer/Coulomb-Energy-Minimizer/main.cpp
