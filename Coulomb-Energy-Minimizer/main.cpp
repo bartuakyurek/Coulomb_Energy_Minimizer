@@ -52,9 +52,9 @@ std::vector<adjacency> adjacency_list;
 
 // CONSTANTS (TO BE CHANGED) TODO: convert these to arguments
 const int STARTING_ITER = 0;            // Doesn't affect functionality, just to save iteration points (TODO: remove)
-const int CHECKPOINT_ITER = 100;        // Save the result every CHECKPOINT_ITER iterations
+const int CHECKPOINT_ITER = 10;        // Save the result every CHECKPOINT_ITER iterations
 const int T_STEPS = 300;                // Number of iterations to optimize the objective function
-const std::string OBJ_MESH_PATH = "/Users/bartu/Desktop/Coulomb-FFM/test meshes/16.obj";   // Path to the input mesh .obj
+const std::string OBJ_MESH_PATH = "/Users/bartu/Desktop/Coulomb-FFM/test meshes/16_decimated.obj";   // Path to the input mesh .obj
 
 // --------------------------------------------------------------------------------------------------------------
 
@@ -249,92 +249,83 @@ int main()
   std::cout << ">>> FFM tree construction took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
     
     
+    /*
   start = std::chrono::steady_clock::now();
   std::vector<double> direct = fmmtree.solveDirect(u);
   end = std::chrono::steady_clock::now();
     
   std::cout << ">>> Direct solver took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    
-    /*
-    for (unsigned int i=0; i<direct.size(); ++i){
-        std::cout << ">> direct[" << i << "] = [" << direct[i] << "]" << std::endl;
-    }
     */
-   
-    /*
-    std::cout << ">> Starting indirect solver...\n";
     
-    start = std::chrono::steady_clock::now();
-    std::vector<std::vector<std::complex<double> > > indirect = fmmtree.solve(u);
-    end = std::chrono::steady_clock::now();
     
-    std::cout << ">>> Indirect solver took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-   */
-    
-    /*
-  for (unsigned int i=0; i<direct.size(); ++i)
-  {
-    std::cout << ">> direct[" << i << "] = [" << direct[i] << "]" << " versus "
-    		  << "indirect[0][" << i << "] = [" << indirect[0][i] << "]" << "\n";
-  }
-*/
- 
-    /*
-  std::cout << ">> direct.size() = " << direct.size() << std::endl;
-  double error = 0.0;
 
-    
-  for (unsigned int i = 0; i<direct.size(); ++i)
-  {
-	  double tmp = std::abs(direct[i]-indirect[0][i].real());
-	  if (tmp>error)
-        error = tmp;
-  }
-
-  std::cout << ">> Error = " << error << "\n";
-*/
-  //std::cin.ignore();
-  //std::cin.get();
-
-    
+    /*
     start = std::chrono::steady_clock::now();
     std::vector<std::vector<double> > direct_grad = fmmtree.solveDirectGrad(u);
     end = std::chrono::steady_clock::now();
     
     std::cout << ">>> Direct gradient took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    /*
-  for (unsigned int i=0; i<y.size(); ++i)
-    std::cout << ">> direct_grad[" << i << "] = [" << direct_grad[0][i] << ", " << direct_grad[1][i] << ", "
-                                                   << direct_grad[2][i] << "]" << std::endl;
-*/
-  //std::cin.ignore();
-  //std::cin.get();
+   
+    */
+    Eigen::VectorXd copied_x(nSourceParticles*3);
+    Eigen::VectorXd copied_grad(nSourceParticles*3);
+    // Iteratively compute Eqn.4 and 6 for T_STEPS
+    for(int t = 0; t < T_STEPS; t++){
+        std::cout << "Step " << t << "...\n";
+        // Evaluate energy function
+        std::vector<std::vector<double>> direct_grad = fmmtree.solveDirectGrad(u);
+        
+        //copied_x = Eigen::Map<RowVectorXd>(&x[nSourceParticles][3], nSourceParticles*3 );
+        //copied_grad = Eigen::Map<RowVectorXd>(&direct_grad[nSourceParticles][3], nSourceParticles*3 );
+        // TODO: why doesn't mapping of copied_x above work?
+        // i combined my previous code on Eigen with this FMM library but now it does unnecessary copying...
+        for(size_t i = 0; i < nSourceParticles ; i++){
+            copied_x(i * 3) = x[i].getX();
+            copied_x(i * 3 + 1) = x[i].getY();
+            copied_x(i * 3 + 2) = x[i].getZ();
 
-    /*
-    for (unsigned int i=0; i<y.size(); ++i)
-    {
- 
-	    std::cout << ">> direct_grad[" << i << "] = [" << direct_grad[0][i] << ", " << direct_grad[1][i] << ", " << direct_grad[2][i] << "]" << " versus "
-    		  << "indirect[" << i << "] = [" << indirect[1][i] << ", " << indirect[2][i] << ", " << indirect[3][i] << "]" << "\n";
+            copied_grad(i * 3) = direct_grad[0][i];
+            copied_grad(i * 3 + 1) = direct_grad[1][i];
+            copied_grad(i * 3 + 2) = direct_grad[2][i];
+        }
+        double c_t = 0.1  * (max_d / copied_grad.maxCoeff());   // step-size heuristic used by the paper
+        copied_x = copied_x - c_t * copied_grad;
+        
+        // Eqn. 6
+        // I tried disabling the constraint but then the result is garbage.
+        MatrixXd x_mat = RowMatrixXd::Map(copied_x.data(), int(copied_x.rows()/3), 3);
+        apply_edge_constraint(x_mat, adjacency_list);
+        
+        // TODO: adjust apply_edge_constraints to work on flat vectors
+        RowMatrixXd x_mat_rowmajor(x_mat);
+        Map<RowVectorXd> x_map(x_mat_rowmajor.data(), x_mat_rowmajor.size());
+        copied_x = x_map;
+        
+        // convert them back TODO: get rid of conversions...
+        eigen2point(x_eigen, x);
+        eigen2point(x_eigen, y);
+        
+        if((t+1) % CHECKPOINT_ITER == 0){
+            MatrixXd V_new = RowMatrixXd::Map(copied_x.data(), int(copied_x.rows()/3), 3);
+            igl::writeOBJ("../../../result_" + std::to_string(STARTING_ITER+t+1) + ".obj", V_new, F);
+        }
     }
-*/
-/*
-    std::cout << ">> direct_grad.size() = " << direct_grad.size() << std::endl;
-    double error_grad1 = 0.0;
-    double error_grad2 = 0.0;
-    for (unsigned int i = 0; i<y.size(); ++i)
-    {
- 	  double tmp1 = std::abs(direct_grad[0][i]-indirect[1][i].real());
-  	  double tmp2 = std::abs(direct_grad[1][i]-indirect[2][i].real());
-  	  if (tmp1>error_grad1)
-          error_grad1 = tmp1;
-  	  if (tmp2>error_grad2)
-          error_grad2 = tmp2;
-    }
-
-    std::cout << ">> ErrorGrad = [" << error_grad1 << ", " << error_grad2 << "]" << "\n";
-*/
+    
+    // Unflatten X vector back to V matrix
+    // TODO: stick to either vector or matrix representation?
+    MatrixXd V_new = RowMatrixXd::Map(copied_x.data(), int(copied_x.rows()/3), 3);
+    
+    // ------------------------------------------------------------------------------------------------------
+    //                                          OUTPUT MESH
+    // ------------------------------------------------------------------------------------------------------
+    // Write the output mesh into .obj
+    // See result.obj created in the project folder
+    igl::writeOBJ("../../../result.obj", V_new, F);
+    
+    
+    
   std::cout << ">> Finished." << "\n";
 
-
+    
+    return EXIT_SUCCESS;
 }

@@ -31,6 +31,8 @@ class Point
     std::string coordToString();
     bool equals(Point &p);
     int getBoxIndex(unsigned int level);
+    
+    const double& operator [] ( int index ) const;
 };
 
 

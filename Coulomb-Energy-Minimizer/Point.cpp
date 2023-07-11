@@ -99,6 +99,10 @@ bool Point::equals(Point &p)
     return false;
 }
 
+const double& Point::operator [] ( int index ) const{
+    return this->coord[index];
+}
+
 /**
  * Explanation of getBoxIndex member function
  *
