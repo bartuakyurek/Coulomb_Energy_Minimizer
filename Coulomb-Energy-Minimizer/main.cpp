@@ -46,7 +46,7 @@ std::vector<adjacency> adjacency_list;
 const int STARTING_ITER = 0;            // Doesn't affect functionality, just to save iteration points (TODO: remove)
 const int CHECKPOINT_ITER = 100;        // Save the result every CHECKPOINT_ITER iterations
 const int T_STEPS = 300;                // Number of iterations to optimize the objective function
-const std::string OBJ_MESH_PATH = "../../../test meshes/kid01_decimated.obj";   // Path to the input mesh .obj
+const std::string OBJ_MESH_PATH = "../../../test meshes/16_decimated.obj";   // Path to the input mesh .obj
 // ===============================================================================================================================================
 // ===============================================================================================================================================
 
