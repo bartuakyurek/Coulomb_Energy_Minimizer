@@ -52,9 +52,9 @@ std::vector<adjacency> adjacency_list;
 
 // CONSTANTS (TO BE CHANGED) TODO: convert these to arguments
 const int STARTING_ITER = 0;            // Doesn't affect functionality, just to save iteration points (TODO: remove)
-const int CHECKPOINT_ITER = 20;        // Save the result every CHECKPOINT_ITER iterations
+const int CHECKPOINT_ITER = 10;        // Save the result every CHECKPOINT_ITER iterations
 const int T_STEPS = 300;                // Number of iterations to optimize the objective function
-const std::string OBJ_MESH_PATH = "/Users/bartu/Desktop/Coulomb-FFM/test meshes/16_decimated.obj";   // Path to the input mesh .obj
+const std::string OBJ_MESH_PATH = "/Users/bartu/Documents/GitHub/Coulomb_Energy_Minimizer/test meshes/kid01_decimated.obj";   // Path to the input mesh .obj
 
 // --------------------------------------------------------------------------------------------------------------
 
@@ -171,7 +171,6 @@ int main()
     // Read input mesh
     //igl::readOBJ("../../../result.obj", V, F);    // Use this to resume where you left
     igl::readOBJ(OBJ_MESH_PATH, V, F);
-    
     // Scale for numerical stabilitiy
     // V = V * 1000;
     
@@ -192,88 +191,60 @@ int main()
     get_edge_lengths(x_eigen, E, edge_lengths);
     double max_d =edge_lengths.maxCoeff();
     
-  // ------------------------------------------------------------------------------------------------------
-  //                                                F F M
-  // ------------------------------------------------------------------------------------------------------
+    // ------------------------------------------------------------------------------------------------------
+    //                                                F F M
+    // ------------------------------------------------------------------------------------------------------
 
-  // note that the DEFAULT_NUM_LEVEL count starts on l = 1
-  // Example:  If the default number of FMM levels is 5
-  //           Then the levels are l = 0, l = 1, l = 2, l = 3, and l = 4
-  int DEFAULT_NUM_LEVEL = 4;
-  // abs_alpha is also the order_of_approximation - highest order of derivatives used in Taylor series approximation
-  unsigned int abs_alpha = 4;
-  // number of Taylor series terms used to approximate the potential function
-  int p = (abs_alpha+1)*(abs_alpha+1);
+    // note that the DEFAULT_NUM_LEVEL count starts on l = 1
+    // Example:  If the default number of FMM levels is 5
+    //           Then the levels are l = 0, l = 1, l = 2, l = 3, and l = 4
+    int DEFAULT_NUM_LEVEL = 4;
+    // abs_alpha is also the order_of_approximation - highest order of derivatives used in Taylor series approximation
+    unsigned int abs_alpha = 4;
+    // number of Taylor series terms used to approximate the potential function
+    int p = (abs_alpha+1)*(abs_alpha+1);
 
-  std::vector<Point>  x, y;
-  std::vector<double> u;
+    std::vector<Point>  x, y;
+    std::vector<double> u;
 
-  // Below we use 8 source particles (2 in each coordinate direction)
-  // per cell with pow(8,L-1) cells/boxes partitioning the domain
-  size_t nSourceParticles = V.rows(); // pow(2, 0);
-  x.resize(nSourceParticles);
+    // Below we use 8 source particles (2 in each coordinate direction)
+    // per cell with pow(8,L-1) cells/boxes partitioning the domain
+    size_t nSourceParticles = V.rows(); // pow(2, 0);
+    x.resize(nSourceParticles);
  
-  // One target point
-  y.resize(nSourceParticles);
+    // One target point
+    y.resize(nSourceParticles);
 
-  // u holds the charges of source particles TODO: i forgot how to initialize all elements to same..
-  u.resize(nSourceParticles);
-  for(size_t i = 0; i < nSourceParticles; i++){
-      u[i] = 1.0;
-  }
+    // u holds the charges of source particles TODO: i forgot how to initialize all elements to same..
+    u.resize(nSourceParticles);
+    for(size_t i = 0; i < nSourceParticles; i++){
+        u[i] = 1.0;
+    }
 
-  // ********************************************************************
-  // Creating the Source Points *****************************************
-  // ********************************************************************
-    
+    // ********************************************************************
+    // Creating the Source & Target Points ********************************
+    // ********************************************************************
     eigen2point(x_eigen, x);
     eigen2point(x_eigen, y);
 
-   // ********************************************************************
-  // Creating the Target Points *****************************************
-  // ********************************************************************
-  // Declaring the Potential Function needed by fmmtree data structure
-  std::cout << ">> We are here before constructor for the potential function" << std::endl;
-  Potential potential(p,abs_alpha);
+    // Declaring the Potential Function needed by fmmtree data structure
+    Potential potential(p,abs_alpha);
 
-  std::cout << ">> We are here before fmmtree construct" << std::endl;
-  std::cout << ">> The number of source particles is " << x.size() << std::endl;
-  std::cout << ">> The number of target particles is " << y.size() << std::endl;
-  std::cout << ">> The potential function has p = " << potential.getP() << std::endl;
-  std::cout << ">> The potential function has order_of_approximation = " << potential.getOrderApprox() << std::endl;
+    std::cout << ">> The number of source particles is " << x.size() << std::endl;
+    std::cout << ">> The number of target particles is " << y.size() << std::endl;
+    std::cout << ">> The potential function has p = " << potential.getP() << std::endl;
+    std::cout << ">> The potential function has order_of_approximation = " << potential.getOrderApprox() << std::endl;
 
-  // Declaring the FMM Tree data structure
-  auto start = std::chrono::steady_clock::now();
-  FmmTree fmmtree(DEFAULT_NUM_LEVEL,x,y,potential);
-  auto end = std::chrono::steady_clock::now();
-  std::cout << ">>> FFM tree construction took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    
-    
-    /*
-  start = std::chrono::steady_clock::now();
-  std::vector<double> direct = fmmtree.solveDirect(u);
-  end = std::chrono::steady_clock::now();
-    
-  std::cout << ">>> Direct solver took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-    */
-    
-    
-
-    /*
-    start = std::chrono::steady_clock::now();
-    std::vector<std::vector<double> > direct_grad = fmmtree.solveDirectGrad(u);
-    end = std::chrono::steady_clock::now();
-    
-    std::cout << ">>> Direct gradient took " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
-   
-    */
+    // TODO: remove these (maybe by altering Point.h library source code)
     Eigen::VectorXd copied_x(nSourceParticles*3);
     Eigen::VectorXd copied_grad(nSourceParticles*3);
+    
     // Iteratively compute Eqn.4 and 6 for T_STEPS
     for(int t = 0; t < T_STEPS; t++){
-        
+        // Declaring the FMM Tree data structure
+        auto start = std::chrono::steady_clock::now();
         FmmTree fmmtree(DEFAULT_NUM_LEVEL,x,y,potential);
-        std::cout << "Step " << t << "...\n";
+        
         // Evaluate energy function
         std::vector<std::vector<double>> direct_grad = fmmtree.solveDirectGrad(u);
         
@@ -291,7 +262,7 @@ int main()
             copied_grad(i * 3 + 2) = direct_grad[2][i];
         }
         double c_t = 0.1  * (max_d / copied_grad.maxCoeff());   // step-size heuristic used by the paper
-        copied_x = copied_x + c_t * copied_grad;
+        copied_x = copied_x + c_t * copied_grad; // gradients are in reverse direction for this FFM library (?)
         
         // Eqn. 6
         // I tried disabling the constraint but then the result is garbage.
@@ -311,6 +282,10 @@ int main()
             MatrixXd V_new = RowMatrixXd::Map(copied_x.data(), int(copied_x.rows()/3), 3);
             igl::writeOBJ("../../../result_" + std::to_string(STARTING_ITER+t+1) + ".obj", V_new, F);
         }
+        
+        // Print how much time a single step took.
+        auto end = std::chrono::steady_clock::now();
+        std::cout << ">> Step " << t+1 << " took " << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s" << std::endl;
     }
     
     // Unflatten X vector back to V matrix
@@ -324,9 +299,7 @@ int main()
     // See result.obj created in the project folder
     igl::writeOBJ("../../../result.obj", V_new, F);
     
-    
-    
-  std::cout << ">> Finished." << "\n";
+    std::cout << ">> Finished." << "\n";
 
     
     return EXIT_SUCCESS;
